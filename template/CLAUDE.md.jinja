@@ -1,0 +1,43 @@
+# {{ app_name }}
+
+{{ description }} Served at {{ host }}. Made from `web-template` (Copier); `.copier-answers.yml` records the version.
+
+## Commands
+```sh
+pnpm install
+pnpm dev               # http://localhost:3000 (not prerendered){% if use_api %}; /api is proxied to the api on :8000 (prefix stripped)
+pnpm dev:prod          # same, but proxied to the prod api{% endif %}
+pnpm lint
+pnpm test              # Vitest: unit tests (jsdom) + Storybook stories in a Playwright browser
+pnpm build             # vite build, prerender, tsc --noEmit
+pnpm preview           # serves dist/ (prerendered, but without nginx's 404 handling)
+pnpm storybook         # :6006
+{%- if use_api %}
+pnpm generate:api      # Orval → src/api/generated (never edit by hand)
+{%- endif %}
+copier update --trust  # pull template changes; commit first
+```
+
+## Stack
+React 19, Vite, TanStack Router (file routes in `src/routes`; `routeTree.gen.ts` is generated), Tailwind 4, shadcn on Base UI (`src/components/ui`), zod, Storybook 10, Vitest.{% if use_api %} TanStack Query and an Orval client for the api.{% endif %} Served by nginx (`nginx.conf`; the Storybook image has its own, `nginx.storybook.conf`).
+
+## Layout
+- `src/routes/`: the pages. `__root.tsx` holds the 404 route; each page renders `AppHeader` itself.
+- `src/components/app-header.tsx`: shared-ui's `SiteHeader` as this site shows it.
+- `src/components/not-found-page.tsx`: the 404 page, with shared-ui's default `NotFound`. Draw the site's own here to replace it.
+{%- if use_api %}
+- `src/api/`: `fetcher.ts` (Orval's mutator: any non-2xx throws `ApiError {status, body}`, success bodies are zod-validated) and the generated client in `generated/` (`{{ api_tag }}` tag of the prod spec; never edit by hand).
+{%- endif %}
+- `src/prerender.tsx` + `scripts/prerender.mjs`: prerendering. `src/router.tsx`: the router, shared by it and `main.tsx`.
+
+## Prerendering and 404s
+`pnpm build` renders `/` and the not-found page in Node and writes them into `dist/index.html` and `dist/404.html`, so crawlers get the text without running JavaScript. The browser hydrates a page on a URL that renders the same as the one it was rendered for, and replaces it anywhere else (`main.tsx`). nginx serves only real files and answers anything else with `404.html` and a 404 status.
+- **Rendering must work in Node, and match the browser's first render.** Don't read `window` or `document` while rendering (effects are fine). A render error fails the build on purpose.
+- **Heads are static,** in `index.html`, because previews and crawlers don't run JavaScript. `404.html`'s head is rewritten in `scripts/prerender.mjs`.
+
+## Gotchas
+- **Installing needs a GitHub Packages token** for `@jakoblui-works/shared-ui`, even though it's public. CI uses `GITHUB_TOKEN` (shared-ui's package settings must give this repo read access, "Manage Actions access"); the Docker builds take it as `--secret id=npm_token,env=NODE_AUTH_TOKEN`.
+- **The header, theme tokens and fonts come from shared-ui;** `styles.css` holds only this site's palette and CSS. A new site needs its entry in shared-ui's `sites.ts` first (`AppHeader`'s `current` is typed by it).
+- **Template files:** keep this repo's own additions at least one line away from template lines, or every template change to those lines conflicts on `copier update`. `README.md`, `CLAUDE.md`, the home page, `app-header.tsx` and `not-found-page.tsx` are this repo's own after the first render; updates never touch them.
+- **Deploys build two images** (`{{ app_name }}` and `{{ app_name }}-storybook`); storybook-host composes the Storybook.
+- **Repo-root `robots.txt`** is Storybook's (disallow all). The site's is `public/robots.txt`.

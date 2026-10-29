@@ -1,0 +1,63 @@
+<!doctype html>
+{%- if theme_toggle %}
+<html lang="en">
+{%- else %}
+<!-- Dark-only: the class is fixed. To add light mode, see `ThemeToggle` in shared-ui. -->
+<html lang="en" class="dark">
+{%- endif %}
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ title | e }}</title>
+    <!-- Shared by all sites (from web-template). The SVG for modern browsers; the ICO for the rest
+         (`sizes="32x32"`, not "any", or Chrome picks the ICO over the SVG). -->
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!-- Static on purpose: link previews and crawlers don't run JavaScript, so every URL shares
+         these. -->
+    <meta name="description" content="{{ description | e }}" />
+    <link rel="canonical" href="https://{{ host }}/" />
+{%- if theme_toggle %}
+    <!-- The page background (`--background`), in hex. Follows the system theme, not the toggle. -->
+    <meta name="theme-color" content="#f7f7f7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)" />
+{%- else %}
+    <!-- The page background (`--background`), in hex. -->
+    <meta name="theme-color" content="#0a0a0a" />
+{%- endif %}
+
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://{{ host }}/" />
+    <meta property="og:title" content="{{ title | e }}" />
+    <meta property="og:description" content="{{ description | e }}" />
+
+    <!-- The app's og:image lines (1200 × 630, with og:image:width, og:image:height and
+         og:image:alt) go below, a line away from the template's, so template updates don't
+         conflict with them. cv-web and site-web render theirs from a Storybook story. -->
+
+    <!-- Without it, Discord and X show a small thumbnail instead of the large card. -->
+    <meta name="twitter:card" content="summary_large_image" />
+{%- if theme_toggle %}
+    <script>
+      // Runs before the first paint so the page never flashes the wrong theme. The key is
+      // shared-ui's THEME_STORAGE_KEY, which `ThemeToggle` writes.
+      (function () {
+        var stored = null;
+        try {
+          stored = localStorage.getItem("theme");
+        } catch (e) {}
+        var dark =
+          stored === "dark" ||
+          (stored !== "light" &&
+            matchMedia("(prefers-color-scheme: dark)").matches);
+        if (dark) document.documentElement.classList.add("dark");
+      })();
+    </script>
+{%- endif %}
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

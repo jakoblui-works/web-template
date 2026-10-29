@@ -1,0 +1,21 @@
+@import "tailwindcss" source("../");
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@jakoblui-works/shared-ui/theme.css";
+
+/* Brand colour: change the palette name here ({{ palette }} → …) to rebrand. Light mode uses 700, dark mode 400 (see --primary in shared-ui's theme.css). */
+@theme {
+  --color-primary-50: var(--color-{{ palette }}-50);
+  --color-primary-100: var(--color-{{ palette }}-100);
+  --color-primary-200: var(--color-{{ palette }}-200);
+  --color-primary-300: var(--color-{{ palette }}-300);
+  --color-primary-400: var(--color-{{ palette }}-400);
+  --color-primary-500: var(--color-{{ palette }}-500);
+  --color-primary-600: var(--color-{{ palette }}-600);
+  --color-primary-700: var(--color-{{ palette }}-700);
+  --color-primary-800: var(--color-{{ palette }}-800);
+  --color-primary-900: var(--color-{{ palette }}-900);
+  --color-primary-950: var(--color-{{ palette }}-950);
+}
+
+/* The app's own CSS goes below, a line away from the template's. */

@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    # Installing shared-ui from GitHub Packages; the package's settings must give this repo read
+    # access ("Manage Actions access").
+    permissions:
+      contents: read
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        theme_toggle: [false, true]
+        use_api: [false, true]
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+      - run: uv tool install copier
+      # The rendered app's packageManager field picks pnpm's version; this only puts pnpm on the path.
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 12.4.2
+      # Writes a user-level .npmrc that reads NODE_AUTH_TOKEN (pnpm ignores tokens in the repo's .npmrc).
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          registry-url: https://npm.pkg.github.com
+          scope: "@jakoblui-works"
+      - run: sudo npx playwright install-deps chromium
+      - run: scripts/test-template.sh ${{ matrix.theme_toggle }} ${{ matrix.use_api }}

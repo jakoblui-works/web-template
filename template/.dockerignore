@@ -1,0 +1,8 @@
+# The images build from a clean checkout's files; what's local (installed, built, generated) stays out.
+node_modules
+dist
+dist-ssr
+storybook-static
+.tanstack
+.git
+*.local

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- ".j" in Sora 700 (outlined, then snapped: straight edges on even units, so they land on whole
+       pixels at 16 and 32 px) and the header's corner notch. Rendered to the PNG/ICO files by
+       `pnpm icons`. -->
+  <rect width="32" height="32" rx="7" fill="#0a0a0a"/>
+  <g fill="#fff">
+    <rect x="8" y="20" width="4" height="4"/>
+    <path d="M12 30V26H14C15.2 26 16 25.4 16 24V13H14V10H20V24C20 28.2 18.3 30 14.5 30Z"/>
+    <rect x="16" y="4" width="4" height="4" rx="1"/>
+    <path d="M28 22V28H22Z"/>
+  </g>
+</svg>

@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_call:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: "pnpm"
+          # Writes a user-level .npmrc that reads NODE_AUTH_TOKEN (pnpm ignores tokens in the repo's .npmrc).
+          registry-url: https://npm.pkg.github.com
+          scope: "@jakoblui-works"
+      - run: pnpm install
+        env:
+          NODE_AUTH_TOKEN: {% raw %}${{ secrets.GITHUB_TOKEN }}{% endraw %}
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm run lint
+      - run: pnpm run build
+      - run: pnpm run test
+      - run: pnpm run build-storybook
+{%- if use_api %}
+  api-client:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: "pnpm"
+          # Writes a user-level .npmrc that reads NODE_AUTH_TOKEN (pnpm ignores tokens in the repo's .npmrc).
+          registry-url: https://npm.pkg.github.com
+          scope: "@jakoblui-works"
+      - run: pnpm install
+        env:
+          NODE_AUTH_TOKEN: {% raw %}${{ secrets.GITHUB_TOKEN }}{% endraw %}
+      - name: Regenerate the api client from the prod spec
+        run: pnpm generate:api
+      - name: Fail if it differs from the committed client
+        run: |
+          if [ -n "$(git status --porcelain -- src/api/generated)" ]; then
+            echo "::error::src/api/generated is out of date with the prod api spec. Run 'pnpm generate:api' and commit the result."
+            git status --short -- src/api/generated
+            git diff -- src/api/generated
+            exit 1
+          fi
+{%- endif %}

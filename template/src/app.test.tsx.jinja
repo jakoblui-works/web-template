@@ -1,0 +1,32 @@
+import { RouterProvider, createMemoryHistory } from "@tanstack/react-router";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+
+import { createRouter } from "./router";
+
+// The app as a visitor gets it: the real route tree and router, at a URL kept in memory.
+const renderApp = async (url: string) => {
+  const router = createRouter();
+  router.update({ history: createMemoryHistory({ initialEntries: [url] }) });
+  await act(() => router.load());
+  render(<RouterProvider router={router} />);
+  return router;
+};
+
+describe("the app's header", () => {
+  it("shows this site in the logo's box and links home through the router", async () => {
+    // At the root, but with a search param, so following the home link has something to change.
+    const router = await renderApp("/?from=elsewhere");
+
+    const box = await screen.findByRole("button", { name: "Switch site" });
+    expect(box.textContent?.trim()).toBe("{{ subdomain }}");
+
+    const home = screen.getByRole("link", { name: "jakoblui home" });
+    expect(home).toHaveAttribute("href", "/");
+
+    // jsdom doesn't follow a plain link, so the location only changes if the router handles it.
+    fireEvent.click(home);
+    await waitFor(() => expect(router.state.location.searchStr).toBe(""));
+    expect(router.state.location.pathname).toBe("/");
+  });
+});

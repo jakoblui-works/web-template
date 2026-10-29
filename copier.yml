@@ -1,0 +1,97 @@
+_min_copier_version: "9.19"
+_subdirectory: template
+
+# Rendered once, then the repo's own: `copier update` leaves them alone. The pages are the app's
+# from the start (the home page, the 404 page around shared-ui's `NotFound`, the header).
+_skip_if_exists:
+  - README.md
+  - CLAUDE.md
+  - src/routes/index.tsx
+  - src/components/app-header.tsx
+  - src/components/not-found-page.tsx
+  - public/sitemap.xml
+
+# Install, so the generated CI's `pnpm install --frozen-lockfile` has a lockfile; then the api
+# client, which is generated from the prod spec and committed. Installing needs a GitHub Packages
+# token for shared-ui (see the README). Tasks need `--trust`:
+# copier copy --trust gh:jakoblui-works/web-template <dir>
+_tasks:
+  - pnpm install
+  - command: pnpm generate:api
+    when: "{{ use_api }}"
+
+app_name:
+  type: str
+  help: Repo, image and container name (e.g. cv-web)
+  validator: >-
+    {% if not (app_name | regex_search('^[a-z][a-z0-9-]*$')) %}
+    Lowercase letters, digits and hyphens, starting with a letter
+    {% endif %}
+
+subdomain:
+  type: str
+  help: >-
+    The site's box in the shared header; it must already be in shared-ui's `sites.ts`
+    (www is the hub, served at the apex)
+  default: "{{ app_name | regex_replace('-web$', '') }}"
+  validator: >-
+    {% if not (subdomain | regex_search('^[a-z][a-z0-9-]*$')) %}
+    Lowercase letters, digits and hyphens, starting with a letter
+    {% endif %}
+
+host:
+  type: str
+  help: The site's domain
+  default: "{{ 'jakoblui.com' if subdomain == 'www' else subdomain ~ '.jakoblui.com' }}"
+
+title:
+  type: str
+  help: The page title, also used for link previews
+  default: "Jakob Lui - {{ app_name }}"
+
+description:
+  type: str
+  help: One line for the page's meta description, link previews and the README
+
+palette:
+  type: str
+  help: The brand colour, a Tailwind palette name (the site's `--color-primary-*`)
+  default: violet
+  choices:
+    - red
+    - orange
+    - amber
+    - yellow
+    - lime
+    - green
+    - emerald
+    - teal
+    - cyan
+    - sky
+    - blue
+    - indigo
+    - violet
+    - purple
+    - fuchsia
+    - pink
+    - rose
+
+theme_toggle:
+  type: bool
+  help: A light/dark toggle in the header? Without it the site is dark-only.
+  default: false
+
+use_api:
+  type: bool
+  help: Does the app call the api? (an Orval client generated from the prod spec, react-query, a dev proxy)
+  default: false
+
+api_tag:
+  type: str
+  help: The api's OpenAPI tag for this app's endpoints (e.g. cv)
+  default: "{{ subdomain | replace('-', '_') }}"
+  when: "{{ use_api }}"
+  validator: >-
+    {% if not (api_tag | regex_search('^[a-z][a-z0-9_]*$')) %}
+    Lowercase letters, digits and underscores, starting with a letter
+    {% endif %}

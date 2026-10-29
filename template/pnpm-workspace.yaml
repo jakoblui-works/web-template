@@ -1,0 +1,5 @@
+allowBuilds:
+  esbuild: false
+# Our own packages, which are used right after they're published.
+minimumReleaseAgeExclude:
+  - '@jakoblui-works/*'

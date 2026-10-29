@@ -1,0 +1,22 @@
+# {{ app_name }}
+
+{{ description }}
+
+The frontend at [{{ host }}](https://{{ host }}), made from [web-template](https://github.com/jakoblui-works/web-template). The header, theme and 404 content come from [shared-ui](https://github.com/jakoblui-works/shared-ui).
+
+## Development
+Installing needs a GitHub token with `read:packages` for `@jakoblui-works/shared-ui`, even though it's public: `pnpm config set "//npm.pkg.github.com/:_authToken" <token>`.
+```sh
+pnpm install
+pnpm dev               # http://localhost:3000 (not prerendered)
+pnpm lint
+pnpm test
+pnpm build             # prerendered, in dist/
+pnpm storybook         # :6006
+```
+
+## Template updates
+```sh
+copier update --trust
+```
+Commit everything first, then review the result as an ordinary diff. A conflict in `pnpm-lock.yaml` is resolved by running `pnpm install`.

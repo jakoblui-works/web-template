@@ -1,0 +1,26 @@
+# syntax=docker/dockerfile:1
+# Stage 1: build
+FROM node:22-slim AS build
+
+WORKDIR /app
+RUN corepack enable
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+# GitHub Packages needs a token even for public packages. It comes in as a build secret, and the
+# user-level npmrc only names the variable (pnpm ignores tokens in the repo's .npmrc).
+RUN --mount=type=secret,id=npm_token,env=NODE_AUTH_TOKEN,required=true \
+    printf '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}\n' > /tmp/auth.npmrc \
+    && NPM_CONFIG_USERCONFIG=/tmp/auth.npmrc pnpm install --frozen-lockfile \
+    && rm /tmp/auth.npmrc
+
+COPY . .
+
+RUN pnpm run build
+
+# Stage 2: serve
+FROM nginx:alpine
+
+COPY --from=build /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
