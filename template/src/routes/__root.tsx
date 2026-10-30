@@ -1,6 +1,6 @@
 import { Outlet, Scripts, createRootRoute } from "@tanstack/react-router";
 
-import { NotFoundPage } from "@/components/not-found-page";
+import { NotFoundPage } from "@/components/not-found-page/not-found-page";
 
 // Each page renders the header itself (`AppHeader`), so a page can place it where it needs to.
 // `Scripts` writes the router's state into prerendered pages, for hydrating them (see `main.tsx`).

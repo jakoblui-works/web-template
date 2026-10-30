@@ -7,8 +7,8 @@ _skip_if_exists:
   - README.md
   - CLAUDE.md
   - src/routes/index.tsx
-  - src/components/app-header.tsx
-  - src/components/not-found-page.tsx
+  - src/components/app-header/app-header.tsx
+  - src/components/not-found-page/not-found-page.tsx
   - public/sitemap.xml
 
 # Install, so the generated CI's `pnpm install --frozen-lockfile` has a lockfile; then the api
