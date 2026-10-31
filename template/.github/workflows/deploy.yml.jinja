@@ -55,9 +55,20 @@ jobs:
   trigger-deploy:
     needs: [build, build-storybook]
     runs-on: ubuntu-latest
+    permissions:
+      statuses: write
     steps:
+      # infra replaces this with the deploy's result, on this commit.
+      - name: Mark the commit as waiting to deploy
+        continue-on-error: true
+        env:
+          GH_TOKEN: {% raw %}${{ github.token }}{% endraw %}
+        run: |
+          gh api --silent "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+            -f state=pending -f context=deploy -f description="Waiting to deploy"
       - name: Trigger deploy
         env:
           GH_TOKEN: {% raw %}${{ secrets.DEPLOY_REPO_DISPATCH_TOKEN }}{% endraw %}
         run: |
-          gh api repos/jakoblui-works/infra/dispatches -f event_type=deploy
+          gh api repos/jakoblui-works/infra/dispatches -f event_type=deploy \
+            -f 'client_payload[repo]={{ app_name }}' -f "client_payload[sha]=$GITHUB_SHA"
