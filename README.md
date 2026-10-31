@@ -19,10 +19,11 @@ Questions:
 - `use_api`: an Orval client for the api's `api_tag` endpoints, react-query, a dev proxy, and a CI check that the client matches the prod spec.
 
 The new repo still needs:
-- the `DEPLOY_REPO_DISPATCH_TOKEN` secret, which `deploy.yml` uses to trigger the infra deploy;
+- access to the `DEPLOY_REPO_DISPATCH_TOKEN` org secret, which `deploy.yml` uses to trigger the infra deploy;
+- a place on the `DEPLOY_STATUS_TOKEN` token's repository list, or infra can't report the deploy on its commits and they stay `pending`;
 - read access to the shared-ui package for its Actions (the package's "Manage Actions access");
 - its GHCR packages made public after the first push (new org packages start private);
-- its infra side (compose service, Traefik router, DNS) and its place in the site-web x-ray.
+- its infra side (compose service, Traefik router) and its place in the site-web x-ray. DNS is covered by the wildcard record. The full list is in `platform-docs/new-service.md`.
 
 ## Update a frontend
 ```sh
