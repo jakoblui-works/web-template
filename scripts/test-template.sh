@@ -135,7 +135,14 @@ asset_headers=$(curl -s -D - -o /dev/null -H 'Accept-Encoding: gzip' "$site$asse
 missing=$(curl -s -D - -o "$tmp/missing.html" "$site/no-such-page")
 [[ $(head -1 <<<"$missing") == *" 404"* ]] || fail "an unknown path didn't return 404"
 grep -q 'data-prerendered="/404"' "$tmp/missing.html" || fail "an unknown path isn't served the prerendered 404 page"
-echo "200 and no-cache for /, immutable and gzip for $asset, 404 with 404.html for an unknown path"
+# No generated app ships these yet, so put one of each into the running container.
+docker exec "$site_container" sh -c 'head -c 4096 /dev/zero > /usr/share/nginx/html/assets/t3.wasm && head -c 4096 /dev/zero | tr "\\0" a > /usr/share/nginx/html/assets/t3.mjs'
+wasm_headers=$(curl -s -D - -o /dev/null -H 'Accept-Encoding: gzip' "$site/assets/t3.wasm")
+[[ $(header content-type <<<"$wasm_headers") == application/wasm ]] || fail ".wasm isn't served as application/wasm"
+[[ $(header content-encoding <<<"$wasm_headers") == gzip ]] || fail ".wasm isn't gzipped"
+mjs_headers=$(curl -s -D - -o /dev/null "$site/assets/t3.mjs")
+[[ $(header content-type <<<"$mjs_headers") == application/javascript ]] || fail ".mjs isn't served as JavaScript"
+echo "200 and no-cache for /, immutable and gzip for $asset, .wasm gzipped, .mjs as JavaScript, 404 with 404.html for an unknown path"
 
 # T4
 step "The Storybook image serves index.json for composition"
