@@ -11,7 +11,7 @@ pnpm install && pnpm icons             # render template/public/icon.svg to favi
 The script needs `NODE_AUTH_TOKEN` (a GitHub token with `read:packages`; locally `NODE_AUTH_TOKEN=$(gh auth token)`), Docker, and network access (the api renders read the prod OpenAPI spec). It renders, installs with `--frozen-lockfile`, lints, builds (with the prerender), tests, builds Storybook, then builds both images and checks them as nginx serves them:
 - **T1:** every answer combination installs, lints, builds and tests.
 - **T2:** nothing unrendered (`{{`, `{%`, `{#` outside GitHub expressions).
-- **T3:** the site image: `/` is the prerendered page with `no-cache`, `/assets/` is `immutable` and gzipped, an unknown path is a 404 with `404.html`.
+- **T3:** the site image: `/` is the prerendered page with `no-cache`, `/assets/` is `immutable` and gzipped, `.wasm` is gzipped `application/wasm` and `.mjs` is JavaScript, an unknown path is a 404 with `404.html`.
 - **T4:** the Storybook image serves `index.json` with the CORS headers storybook-host's composition needs.
 - **T5:** the package token is in neither image.
 - **T6:** with `theme_toggle`, `index.html`'s script reads shared-ui's `THEME_STORAGE_KEY`.
