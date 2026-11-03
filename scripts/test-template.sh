@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
 # Render the template and check the generated app: install, lint, build, tests, Storybook, and both
 # images as served by nginx.
-# Usage: scripts/test-template.sh <theme_toggle: true|false> <use_api: true|false>
+# Usage: scripts/test-template.sh <theme_toggle: true|false> <use_api: true|false> [csp: true|false]
 # Needs NODE_AUTH_TOKEN: a GitHub token with read:packages, for @jakoblui-works/shared-ui (the Docker
 # builds take it as a secret; installs read it through the user-level npmrc, see the README).
 set -euo pipefail
 
-if [[ $# -ne 2 || ! $1 =~ ^(true|false)$ || ! $2 =~ ^(true|false)$ ]]; then
-    echo "usage: $0 <theme_toggle: true|false> <use_api: true|false>" >&2
+if [[ $# -lt 2 || $# -gt 3 || ! $1 =~ ^(true|false)$ || ! $2 =~ ^(true|false)$ || ! ${3:-false} =~ ^(true|false)$ ]]; then
+    echo "usage: $0 <theme_toggle: true|false> <use_api: true|false> [csp: true|false]" >&2
     exit 2
 fi
 theme_toggle=$1
 use_api=$2
+csp=${3:-false}
 : "${NODE_AUTH_TOKEN:?set NODE_AUTH_TOKEN to a GitHub token with read:packages}"
 
 repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -41,9 +42,12 @@ step "No file in the template both plain and as .jinja"
 twins=$(cd "$repo/template" && find . -name '*.jinja' | while read -r j; do if [[ -e ${j%.jinja} ]]; then echo "${j%.jinja}"; fi; done)
 [[ -z $twins ]] || fail "plain and .jinja versions of: $twins"
 
-step "Render (theme_toggle=$theme_toggle, use_api=$use_api)"
+step "Render (theme_toggle=$theme_toggle, use_api=$use_api, csp=$csp)"
 answers=(-d app_name="$app" -d subdomain=cv -d description="An example app's \"page\", with \$1 & <b>." -d theme_toggle="$theme_toggle" -d use_api="$use_api")
 [[ $use_api == true ]] && answers+=(-d api_tag=cv)
+# Strict: no inline scripts or third parties beyond what the build hashes.
+policy="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+[[ $csp == true ]] && answers+=(-d csp="$policy")
 copier copy --trust --defaults --vcs-ref HEAD "${answers[@]}" "$repo" "$project"
 cd "$project"
 
@@ -144,6 +148,46 @@ mjs_headers=$(curl -s -D - -o /dev/null "$site/assets/t3.mjs")
 [[ $(header content-type <<<"$mjs_headers") == application/javascript ]] || fail ".mjs isn't served as JavaScript"
 echo "200 and no-cache for /, immutable and gzip for $asset, .wasm gzipped, .mjs as JavaScript, 404 with 404.html for an unknown path"
 
+# T7
+if [[ $csp == true ]]; then
+    step "The CSP header allows the pages' inline scripts by hash, and the pages run without a violation"
+    for page in home missing; do
+        sent=$(header content-security-policy <<<"${!page}")
+        [[ -n $sent ]] || fail "no Content-Security-Policy on $page"
+        # The answer, with hashes added to script-src only.
+        [[ $(sed -E "s/ 'sha256-[^']+'//g" <<<"$sent") == "$policy" ]] || fail "$page's policy isn't the answer plus hashes: $sent"
+        node --input-type=module -e '
+            import { createHash } from "node:crypto";
+            import { readFileSync } from "node:fs";
+            const [file, sent] = process.argv.slice(1);
+            const html = readFileSync(file, "utf8");
+            const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].filter(([, a]) => !/\ssrc=/.test(a));
+            if (scripts.length === 0) throw new Error("no inline scripts to check");
+            for (const [, , body] of scripts) {
+                const hash = `sha256-${createHash("sha256").update(body).digest("base64")}`;
+                if (!sent.includes(`'\''${hash}'\''`)) throw new Error(`inline script ${hash} not allowed`);
+            }' "$tmp/$page.html" "$sent" || fail "an inline script on $page isn't allowed by the policy"
+    done
+    SITE="$site" node --input-type=module -e '
+        import { chromium } from "playwright";
+        const browser = await chromium.launch();
+        const violations = [];
+        for (const path of ["/", "/no-such-page"]) {
+            const page = await browser.newPage();
+            page.on("console", (m) => { if (/Content.Security.Policy/i.test(m.text())) violations.push(`${path}: ${m.text()}`); });
+            await page.addInitScript(() => {
+                document.addEventListener("securitypolicyviolation", (e) => console.error(`Content Security Policy: ${e.violatedDirective} ${e.blockedURI}`));
+            });
+            await page.goto(process.env.SITE + path, { waitUntil: "networkidle" });
+            await page.close();
+        }
+        await browser.close();
+        if (violations.length) { console.error(violations.join("\n")); process.exit(1); }' || fail "the pages break the policy in Chromium"
+    echo "Both pages send the policy with their inline scripts' hashes; no violations in Chromium"
+else
+    [[ -z $(header content-security-policy <<<"$home") ]] || fail "a Content-Security-Policy without the csp answer"
+fi
+
 # T4
 step "The Storybook image serves index.json for composition"
 storybook=$(serve "$storybook_container" "$storybook_image")
@@ -155,4 +199,4 @@ node -e 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))' "$tmp/
 [[ $(header access-control-allow-credentials <<<"$index") == true ]] || fail "index.json doesn't allow credentials"
 echo "index.json allows $origin, with credentials"
 
-step "All checks passed (theme_toggle=$theme_toggle, use_api=$use_api)"
+step "All checks passed (theme_toggle=$theme_toggle, use_api=$use_api, csp=$csp)"

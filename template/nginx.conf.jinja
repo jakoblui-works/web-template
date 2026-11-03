@@ -28,6 +28,10 @@ server {
 
     location / {
         add_header Cache-Control $cache_control;
+{%- if csp %}
+        # In each location that sets headers: a location's own `add_header` replaces the outer ones.
+        include /etc/nginx/csp.conf;
+{%- endif %}
         # Every page is a real file (prerendered, see `scripts/prerender.mjs`), so anything else is
         # a 404, not the home page under another URL.
         try_files $uri $uri/ =404;
@@ -37,5 +41,8 @@ server {
     error_page 404 /404.html;
     location = /404.html {
         internal;
+{%- if csp %}
+        include /etc/nginx/csp.conf;
+{%- endif %}
     }
 }

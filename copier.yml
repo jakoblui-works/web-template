@@ -81,6 +81,19 @@ theme_toggle:
   help: A light/dark toggle in the header? Without it the site is dark-only.
   default: false
 
+csp:
+  type: str
+  help: >-
+    A Content-Security-Policy header for the site, or empty for none. Write `script-src` without
+    the inline scripts' hashes: the build adds them (`scripts/prerender.mjs`).
+  default: ""
+  validator: >-
+    {% if csp and not (csp | regex_search('(^|;)\\s*script-src\\s')) %}
+    Needs a `script-src` directive: the build adds the inline scripts' hashes to it
+    {% elif csp | regex_search('["$\\\\\\n]') %}
+    No double quotes, `$`, backslashes or line breaks (it goes into nginx's config)
+    {% endif %}
+
 use_api:
   type: bool
   help: Does the app call the api? (an Orval client generated from the prod spec, react-query, a dev proxy)

@@ -16,6 +16,7 @@ Questions:
 - `title`, `description`: the page head and link previews.
 - `palette`: the brand colour, a Tailwind palette name.
 - `theme_toggle`: a light/dark toggle in the header (shared-ui's `ThemeToggle`); without it, dark-only.
+- `csp`: a Content-Security-Policy header, empty (none) by default. Write `script-src` without the inline scripts' hashes: the build adds those of every inline script in the prerendered pages (the theme script, the router's hydration scripts), since they change between builds, and nginx sends it on every page, the 404 page too. Vite inlines small fonts as `data:` URLs, so allow `font-src 'self' data:`.
 - `use_api`: an Orval client for the api's `api_tag` endpoints, react-query, a dev proxy, and a CI check that the client matches the prod spec.
 
 The new repo still needs:
@@ -34,5 +35,5 @@ Run it in the generated repo with everything committed. Copier applies the templ
 ## Layout
 - `copier.yml`: the questions.
 - `template/`: what gets rendered. Files ending in `.jinja` are templated; the rest are copied as they are.
-- `scripts/test-template.sh`: renders the template and checks the result (CI runs it for each combination of `theme_toggle` and `use_api`).
+- `scripts/test-template.sh`: renders the template and checks the result (CI runs it for each combination of `theme_toggle` and `use_api`, and once with `csp`).
 - `scripts/render-icons.mjs`: renders `template/public/icon.svg` to the bitmap icons (`pnpm icons`).

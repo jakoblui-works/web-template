@@ -8,7 +8,7 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export default defineConfig([
-  globalIgnores(["dist", "dist-ssr", "storybook-static", "src/api/generated", "src/routeTree.gen.ts"]),
+  globalIgnores(["dist", "dist-ssr", "dist-nginx", "storybook-static", "src/api/generated", "src/routeTree.gen.ts"]),
   {
     files: ["**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}"],
     plugins: { js },
