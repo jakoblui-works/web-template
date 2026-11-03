@@ -19,6 +19,12 @@ jobs:
       matrix:
         theme_toggle: [false, true]
         use_api: [false, true]
+        csp: [false]
+        # The CSP once, on ats-web's combination.
+        include:
+          - theme_toggle: true
+            use_api: false
+            csp: true
     env:
       NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -39,4 +45,4 @@ jobs:
           registry-url: https://npm.pkg.github.com
           scope: "@jakoblui-works"
       - run: sudo npx playwright install-deps chromium
-      - run: scripts/test-template.sh ${{ matrix.theme_toggle }} ${{ matrix.use_api }}
+      - run: scripts/test-template.sh ${{ matrix.theme_toggle }} ${{ matrix.use_api }} ${{ matrix.csp }}

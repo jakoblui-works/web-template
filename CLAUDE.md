@@ -5,7 +5,7 @@ Copier template for jakoblui.com frontends. Everything under `template/` is rend
 ## Commands
 ```sh
 uv tool install copier
-scripts/test-template.sh false false   # render (theme_toggle, use_api) and check it; CI runs all four
+scripts/test-template.sh false false   # render (theme_toggle, use_api[, csp]) and check it; CI runs all four, plus ats-web's with csp
 pnpm install && pnpm icons             # render template/public/icon.svg to favicon.ico and apple-touch-icon.png
 ```
 The script needs `NODE_AUTH_TOKEN` (a GitHub token with `read:packages`; locally `NODE_AUTH_TOKEN=$(gh auth token)`), Docker, and network access (the api renders read the prod OpenAPI spec). It renders, installs with `--frozen-lockfile`, lints, builds (with the prerender), tests, builds Storybook, then builds both images and checks them as nginx serves them:
@@ -15,6 +15,7 @@ The script needs `NODE_AUTH_TOKEN` (a GitHub token with `read:packages`; locally
 - **T4:** the Storybook image serves `index.json` with the CORS headers storybook-host's composition needs.
 - **T5:** the package token is in neither image.
 - **T6:** with `theme_toggle`, `index.html`'s script reads shared-ui's `THEME_STORAGE_KEY`.
+- **T7:** with `csp`, `/` and the 404 page send the answer's policy with the hashes of their inline scripts added to `script-src`, and both load in Chromium without a CSP violation; without it, no CSP header.
 - **G1** (`template/src/app.test.tsx.jinja`, rendered into every app): the header shows the app's `subdomain` and links home.
 
 ## Rules
