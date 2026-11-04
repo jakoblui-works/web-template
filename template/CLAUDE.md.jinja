@@ -38,7 +38,7 @@ React 19, Vite, TanStack Router (file routes in `src/routes`; `routeTree.gen.ts`
 
 ## Gotchas
 - **Installing needs a GitHub Packages token** for `@jakoblui-works/shared-ui`, even though it's public. CI uses `GITHUB_TOKEN` (shared-ui's package settings must give this repo read access, "Manage Actions access"); the Docker builds take it as `--secret id=npm_token,env=NODE_AUTH_TOKEN`.
-- **The header, theme tokens and fonts come from shared-ui;** `styles.css` holds only this site's palette and CSS. A new site needs its entry in shared-ui's `sites.ts` first (`AppHeader`'s `current` is typed by it).
+- **The header, theme tokens and fonts come from shared-ui;** `styles.css` holds only this site's palette and CSS. A new site needs its entry in shared-ui's `sites.ts` first (`AppHeader`'s `current` is typed by it), with the same palette as `styles.css`: the switcher shows each site's box in it.
 - **Template files:** keep this repo's own additions at least one line away from template lines, or every template change to those lines conflicts on `copier update`. `README.md`, `CLAUDE.md`, the home page, `app-header.tsx` and `not-found-page.tsx` are this repo's own after the first render; updates never touch them.
 - **Deploys build two images** (`{{ app_name }}` and `{{ app_name }}-storybook`); storybook-host composes the Storybook.
 - **Repo-root `robots.txt`** is Storybook's (disallow all). The site's is `public/robots.txt`.
