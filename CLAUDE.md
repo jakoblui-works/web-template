@@ -1,12 +1,11 @@
 # web-template
 
-Copier template for jakoblui.com frontends. Everything under `template/` is rendered into new repos; the rest (this file, the README, `package.json`, `scripts/`, `.github/`) belongs to the template repo itself.
+Copier template for jakoblui.com frontends. Everything under `template/` is rendered into new repos; the rest (this file, the README, `scripts/`, `.github/`) belongs to the template repo itself.
 
 ## Commands
 ```sh
 uv tool install copier
 scripts/test-template.sh false false   # render (theme_toggle, use_api[, csp]) and check it; CI runs all four, plus ats-web's with csp
-pnpm install && pnpm icons             # render template/public/icon.svg to favicon.ico and apple-touch-icon.png
 ```
 The script needs `NODE_AUTH_TOKEN` (a GitHub token with `read:packages`; locally `NODE_AUTH_TOKEN=$(gh auth token)`), Docker, and network access (the api renders read the prod OpenAPI spec). It renders, installs with `--frozen-lockfile`, lints, builds (with the prerender), tests, builds Storybook, then builds both images and checks them as nginx serves them:
 - **T1:** every answer combination installs, lints, builds and tests.
@@ -16,6 +15,7 @@ The script needs `NODE_AUTH_TOKEN` (a GitHub token with `read:packages`; locally
 - **T5:** the package token is in neither image.
 - **T6:** with `theme_toggle`, `index.html`'s script reads shared-ui's `THEME_STORAGE_KEY`.
 - **T7:** with `csp`, `/` and the 404 page send the answer's policy with the hashes of their inline scripts added to `script-src`, and both load in Chromium without a CSP violation; without it, no CSP header.
+- **T8:** the build renders `favicon.ico` (16, 32 and 48 px PNGs) and `apple-touch-icon.png` (180 px) into `dist/`.
 - **G1** (`template/src/app.test.tsx.jinja`, rendered into every app): the header shows the app's `subdomain` and links home.
 
 ## Rules
@@ -23,7 +23,7 @@ The script needs `NODE_AUTH_TOKEN` (a GitHub token with `read:packages`; locally
 - In templated GitHub workflows, wrap `${{ … }}` in `{% raw %}…{% endraw %}`.
 - `scripts/test-template.sh` renders with `--vcs-ref HEAD`: without it, Copier renders the latest tag and ignores the working tree.
 - Conditional files and folders use a name that renders empty when off (`src/{% if use_api %}api{% endif %}/`, `{% if use_api %}orval.config.ts{% endif %}.jinja`).
-- Code every site must share exactly (the header, theme, 404 content, theme toggle) goes in shared-ui, not here; the template only wires it in. Static files every site serves (the favicons) go here.
+- Code every site must share exactly (the header, theme, 404 content, theme toggle) goes in shared-ui, not here; the template only wires it in. Static files every site serves (the favicons) go here. `public/icon.svg` is the only icon source, with the dot in the site's palette; `scripts/icons-plugin.mjs` renders the bitmap icons from it in each build.
 - The pages are the app's own from the first render (`_skip_if_exists`): the home route, `app-header.tsx`, `not-found-page.tsx`, plus `README.md` and `CLAUDE.md`. A change to them only reaches new repos; tell existing ones by hand if it matters.
 - Moving a `_skip_if_exists` file is a breaking change for repos made from the template: `copier update` deletes the repo's file at the old path, with its changes and no conflict, and renders the default at the new one. Restore the repo's version from git afterwards (seen moving `app-header.tsx`, `v0.2.0`).
 - Releases are git tags (`v0.1.0`); `copier update` moves between them. Tag after merging, not on a branch.
