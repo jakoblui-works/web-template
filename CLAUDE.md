@@ -27,5 +27,6 @@ The script needs `NODE_AUTH_TOKEN` (a GitHub token with `read:packages`; locally
 - The pages are the app's own from the first render (`_skip_if_exists`): the home route, `app-header.tsx`, `not-found-page.tsx`, plus `README.md` and `CLAUDE.md`. A change to them only reaches new repos; tell existing ones by hand if it matters.
 - Moving a `_skip_if_exists` file is a breaking change for repos made from the template: `copier update` deletes the repo's file at the old path, with its changes and no conflict, and renders the default at the new one. Restore the repo's version from git afterwards (seen moving `app-header.tsx`, `v0.2.0`).
 - Releases are git tags (`v0.1.0`); `copier update` moves between them. Tag after merging, not on a branch.
+- A release reaches every site in the same ship, through `copier update` in each (see Shipping in `platform-docs/conventions.md`); sites don't take template-owned changes by hand.
 - Dependency ranges, not `latest`: `latest` re-resolves on every `pnpm add` and churns the lockfile. Packages that must match (vitest and `@vitest/browser-playwright`) get the same range, or a fresh install mixes versions.
 - In a generated repo, keep the repo's own additions at least one line away from template lines: git treats changes on adjacent lines as one conflict.
