@@ -71,6 +71,31 @@ step "lint"
 pnpm run lint
 step "build (with prerender and tsc)"
 pnpm run build
+# T8: the build renders the bitmap icons from icon.svg (nothing else would notice them missing).
+step "The build renders favicon.ico (16/32/48) and apple-touch-icon.png (180) from icon.svg"
+node --input-type=module <<'EOF' || fail "the icons in dist aren't right"
+    import { readFileSync } from "node:fs";
+    const pngSize = (png, where) => {
+        if (png.readUInt32BE(0) !== 0x89504e47) throw new Error(`${where} isn't a PNG`);
+        return [png.readUInt32BE(16), png.readUInt32BE(20)];
+    };
+    const ico = readFileSync("dist/favicon.ico");
+    if (ico.readUInt16LE(2) !== 1) throw new Error("favicon.ico isn't an icon");
+    const sizes = [];
+    for (let i = 0; i < ico.readUInt16LE(4); i++) {
+        const entry = 6 + 16 * i;
+        const data = ico.subarray(ico.readUInt32LE(entry + 12), ico.readUInt32LE(entry + 12) + ico.readUInt32LE(entry + 8));
+        const [w, h] = pngSize(data, `favicon.ico image ${i}`);
+        if (w !== (ico[entry] || 256) || h !== (ico[entry + 1] || 256)) throw new Error(`favicon.ico image ${i} is ${w}x${h}, not what its entry says`);
+        sizes.push(w);
+    }
+    if (sizes.join() !== "16,32,48") throw new Error(`favicon.ico holds ${sizes.join()}, not 16,32,48`);
+    const [w, h] = pngSize(readFileSync("dist/apple-touch-icon.png"), "apple-touch-icon.png");
+    if (w !== 180 || h !== 180) throw new Error(`apple-touch-icon.png is ${w}x${h}`);
+    if (!readFileSync("dist/icon.svg", "utf8").includes("<svg")) throw new Error("dist/icon.svg isn't an SVG");
+EOF
+echo "favicon.ico holds 16, 32 and 48 px PNGs; apple-touch-icon.png is 180 px"
+
 step "test"
 pnpm exec playwright install chromium >/dev/null
 pnpm run test

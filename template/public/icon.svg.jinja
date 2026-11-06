@@ -1,0 +1,21 @@
+{#- The dot takes the brand colour: the palette's 400 shade (dark mode's --primary, which reads on the
+    black tile), in hex because resvg, which renders the bitmaps, doesn't read oklch. Converted from
+    Tailwind 4.3's theme.css. -#}
+{%- set dot = {
+  "red": "#ff6467", "orange": "#ff8904", "amber": "#ffba00", "yellow": "#fcc800", "lime": "#9ae600",
+  "green": "#05df72", "emerald": "#00d492", "teal": "#00d5be", "cyan": "#00d3f2", "sky": "#00bcff",
+  "blue": "#51a2ff", "indigo": "#7c86ff", "violet": "#a684ff", "purple": "#c27aff", "fuchsia": "#ed6bff",
+  "pink": "#fb64b6", "rose": "#ff637e",
+}[palette] -%}
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- ".j" in Sora 700 (outlined, then snapped: straight edges on even units, so they land on whole
+       pixels at 16 and 32 px) and the header's corner notch; the dot in the site's brand colour.
+       The build renders it to favicon.ico and apple-touch-icon.png (`scripts/icons-plugin.mjs`). -->
+  <rect width="32" height="32" rx="7" fill="#0a0a0a"/>
+  <rect x="8" y="20" width="4" height="4" fill="{{ dot }}"/>
+  <g fill="#fff">
+    <path d="M12 30V26H14C15.2 26 16 25.4 16 24V13H14V10H20V24C20 28.2 18.3 30 14.5 30Z"/>
+    <rect x="16" y="4" width="4" height="4" rx="1"/>
+    <path d="M28 22V28H22Z"/>
+  </g>
+</svg>

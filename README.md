@@ -36,4 +36,3 @@ Run it in the generated repo with everything committed. Copier applies the templ
 - `copier.yml`: the questions.
 - `template/`: what gets rendered. Files ending in `.jinja` are templated; the rest are copied as they are.
 - `scripts/test-template.sh`: renders the template and checks the result (CI runs it for each combination of `theme_toggle` and `use_api`, and once with `csp`).
-- `scripts/render-icons.mjs`: renders `template/public/icon.svg` to the bitmap icons (`pnpm icons`).
