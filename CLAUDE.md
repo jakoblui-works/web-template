@@ -6,17 +6,22 @@ Copier template for jakoblui.com frontends. Everything under `template/` is rend
 ```sh
 uv tool install copier
 scripts/test-template.sh false false   # render (theme_toggle, use_api[, csp]) and check it; CI runs all four, plus ats-web's with csp
+SHARED_UI_TARBALL=/abs/path/shared-ui.tgz NODE_AUTH_TOKEN=placeholder scripts/test-template.sh false false   # shared-ui from a local tarball
 ```
-The script needs `NODE_AUTH_TOKEN` (a GitHub token with `read:packages`; locally `NODE_AUTH_TOKEN=$(gh auth token)`), Docker, and network access (the api renders read the prod OpenAPI spec). It renders, installs with `--frozen-lockfile`, lints, builds (with the prerender), tests, builds Storybook, then builds both images and checks them as nginx serves them:
+The script needs `NODE_AUTH_TOKEN` (a GitHub token with `read:packages`; locally `NODE_AUTH_TOKEN=$(gh auth token)`), Docker, and network access (the api renders read the prod OpenAPI spec). `SHARED_UI_TARBALL` (an absolute path to a `.tgz`) installs shared-ui from that file instead of GitHub Packages, for a version not published yet: the script renders with `--skip-tasks`, copies the tarball into the render as `shared-ui.tgz`, overrides the dependency in the render's `pnpm-workspace.yaml`, adds the file to the first `COPY` of the render's `Dockerfile` and `Dockerfile.storybook`, runs the `_tasks` by hand (mirror `copier.yml`'s) and prints the installed version; `template/` is untouched. It renders, installs with `--frozen-lockfile`, lints, builds (with the prerender), tests, builds Storybook, then builds both images and checks them as nginx serves them:
 - **T1:** every answer combination installs, lints, builds and tests.
 - **T2:** nothing unrendered (`{{`, `{%`, `{#` outside GitHub expressions).
-- **T3:** the site image: `/` is the prerendered page with `no-cache`, `/assets/` is `immutable` and gzipped, `.wasm` is gzipped `application/wasm` and `.mjs` is JavaScript, an unknown path is a 404 with `404.html`.
+- **T3:** the site image: `/` is the prerendered page with `no-cache`, `/assets/` is `immutable` and gzipped, `.wasm` is gzipped `application/wasm` and `.mjs` is JavaScript, an unknown path is a 404 with `404.html`; `/` and the 404 page send `Supports-Loading-Mode: credentialed-prerender` (other sites prerender them).
 - **T4:** the Storybook image serves `index.json` with the CORS headers storybook-host's composition needs.
 - **T5:** the package token is in neither image.
 - **T6:** with `theme_toggle`, `index.html`'s script reads shared-ui's `THEME_STORAGE_KEY`.
-- **T7:** with `csp`, `/` and the 404 page send the answer's policy with the hashes of their inline scripts added to `script-src`, and both load in Chromium without a CSP violation; without it, no CSP header.
+- **T7:** with `csp`, `/` and the 404 page send the answer's policy with the hashes of their inline scripts and of shared-ui's speculation rules added to `script-src` (nothing else), and both load in Chromium without a CSP violation, `/` with the speculation rules inserted and their hash in the policy; without it, no CSP header.
 - **T8:** the build renders `favicon.ico` (16, 32 and 48 px PNGs) and `apple-touch-icon.png` (180 px) into `dist/`.
 - **G1** (`template/src/app.test.tsx.jinja`, rendered into every app): the header shows the app's `subdomain` and links home.
+- **G2** (`template/src/site-transition-head-script.test.ts`, rendered into every app): `index.html`'s site-transition head script uses shared-ui's `SITE_TRANSITION_ATTRIBUTE`, `SITE_TRANSITION_TO_ATTRIBUTE` and `SITE_TRANSITION_COOKIE`.
+- **G3** (same file): the head script, run in jsdom with fake timers: no cookie, or one for another host, never marks the page (and keeps that cookie); a cookie for this host marks it `covered` at once, deletes the cookie (for each kind of host: two or more labels, `localhost`, an IP) and clears the mark by itself, unless it reads `leaving` by then; a prerendered page is covered from the start, keeps the cover through activation with the cookie and loses it at activation without.
+
+The site-transition head script and prerendering (`template/index.html.jinja`, `template/nginx.conf.jinja`): the site-transition head script covers an arrival before the first paint from shared-ui's cookie signal and uncovers by itself after about a second; its attribute and cookie names are shared with shared-ui, and G2 checks them. nginx opts pages into prerendering with `Supports-Loading-Mode` (`always`, so the 404 page gets it). With `csp`, `scripts/prerender.mjs` adds the hashes of the inline scripts and of shared-ui's speculation rules, taken from its `speculationRulesText` so the two can't drift.
 
 ## Rules
 - `.jinja` only on files that use template variables. The generated `.gitignore` is `template/.gitignore.jinja` regardless, so git doesn't apply it to the template itself.
