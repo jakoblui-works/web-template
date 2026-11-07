@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Render the template and check the generated app: install, lint, build, tests, Storybook, and both
 # images as served by nginx.
+# With SHARED_UI_TARBALL=<absolute path to a .tgz>, shared-ui comes from that tarball instead of GitHub
+# Packages (for a version not published yet); NODE_AUTH_TOKEN can then be a placeholder.
 # Usage: scripts/test-template.sh <theme_toggle: true|false> <use_api: true|false> [csp: true|false]
 # Needs NODE_AUTH_TOKEN: a GitHub token with read:packages, for @jakoblui-works/shared-ui (the Docker
 # builds take it as a secret; installs read it through the user-level npmrc, see the README).
@@ -48,8 +50,29 @@ answers=(-d app_name="$app" -d subdomain=cv -d description="An example app's \"p
 # Strict: no inline scripts or third parties beyond what the build hashes.
 policy="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
 [[ $csp == true ]] && answers+=(-d csp="$policy")
-copier copy --trust --defaults --vcs-ref HEAD "${answers[@]}" "$repo" "$project"
+tarball=${SHARED_UI_TARBALL:-}
+if [[ -n $tarball ]]; then
+    [[ $tarball == /* && $tarball == *.tgz && -f $tarball ]] || fail "SHARED_UI_TARBALL must be the absolute path of an existing .tgz: $tarball"
+    # No tasks yet: the install must see the tarball first.
+    copier copy --trust --skip-tasks --defaults --vcs-ref HEAD "${answers[@]}" "$repo" "$project"
+else
+    copier copy --trust --defaults --vcs-ref HEAD "${answers[@]}" "$repo" "$project"
+fi
 cd "$project"
+if [[ -n $tarball ]]; then
+    step "Using the local shared-ui tarball $tarball"
+    # In the render only. Next to package.json, so the Dockerfile's first COPY can name it.
+    cp "$tarball" shared-ui.tgz
+    printf "overrides:\n  '@jakoblui-works/shared-ui': file:./shared-ui.tgz\n" >> pnpm-workspace.yaml
+    for dockerfile in Dockerfile Dockerfile.storybook; do
+        sed -i 's|^COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./$|COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc shared-ui.tgz ./|' "$dockerfile"
+        grep -q '^COPY .* shared-ui.tgz ./$' "$dockerfile" || fail "couldn't add the tarball to $dockerfile's first COPY"
+    done
+    # What copier's _tasks (copier.yml) would have run.
+    pnpm install
+    [[ $use_api == true ]] && pnpm generate:api
+    pnpm ls @jakoblui-works/shared-ui
+fi
 
 # T2. node_modules and the lockfile come from the install task, not the template.
 step "No unrendered Jinja"
@@ -164,6 +187,12 @@ asset_headers=$(curl -s -D - -o /dev/null -H 'Accept-Encoding: gzip' "$site$asse
 missing=$(curl -s -D - -o "$tmp/missing.html" "$site/no-such-page")
 [[ $(head -1 <<<"$missing") == *" 404"* ]] || fail "an unknown path didn't return 404"
 grep -q 'data-prerendered="/404"' "$tmp/missing.html" || fail "an unknown path isn't served the prerendered 404 page"
+# Other sites prerender these pages for the site transitions (shared-ui's speculation rules), which
+# Chromium only does across origins when the page opts in.
+for page in home missing; do
+    [[ $(header supports-loading-mode <<<"${!page}") == credentialed-prerender ]] \
+        || fail "$page doesn't send Supports-Loading-Mode: credentialed-prerender"
+done
 # No generated app ships these yet, so put one of each into the running container.
 docker exec "$site_container" sh -c 'head -c 4096 /dev/zero > /usr/share/nginx/html/assets/t3.wasm && head -c 4096 /dev/zero | tr "\\0" a > /usr/share/nginx/html/assets/t3.mjs'
 wasm_headers=$(curl -s -D - -o /dev/null -H 'Accept-Encoding: gzip' "$site/assets/t3.wasm")
@@ -171,15 +200,16 @@ wasm_headers=$(curl -s -D - -o /dev/null -H 'Accept-Encoding: gzip' "$site/asset
 [[ $(header content-encoding <<<"$wasm_headers") == gzip ]] || fail ".wasm isn't gzipped"
 mjs_headers=$(curl -s -D - -o /dev/null "$site/assets/t3.mjs")
 [[ $(header content-type <<<"$mjs_headers") == application/javascript ]] || fail ".mjs isn't served as JavaScript"
-echo "200 and no-cache for /, immutable and gzip for $asset, .wasm gzipped, .mjs as JavaScript, 404 with 404.html for an unknown path"
+echo "200 and no-cache for /, immutable and gzip for $asset, .wasm gzipped, .mjs as JavaScript, 404 with 404.html for an unknown path, both pages opt in to credentialed prerendering"
 
 # T7
 if [[ $csp == true ]]; then
-    step "The CSP header allows the pages' inline scripts by hash, and the pages run without a violation"
+    step "The CSP header allows the pages' inline scripts and speculation rules by hash, and the pages run without a violation"
     for page in home missing; do
         sent=$(header content-security-policy <<<"${!page}")
         [[ -n $sent ]] || fail "no Content-Security-Policy on $page"
-        # The answer, with hashes added to script-src only.
+        # The answer, with hashes added to script-src only (no 'inline-speculation-rules': Chromium
+        # ignores it once script-src lists hashes).
         [[ $(sed -E "s/ 'sha256-[^']+'//g" <<<"$sent") == "$policy" ]] || fail "$page's policy isn't the answer plus hashes: $sent"
         node --input-type=module -e '
             import { createHash } from "node:crypto";
@@ -193,7 +223,9 @@ if [[ $csp == true ]]; then
                 if (!sent.includes(`'\''${hash}'\''`)) throw new Error(`inline script ${hash} not allowed`);
             }' "$tmp/$page.html" "$sent" || fail "an inline script on $page isn't allowed by the policy"
     done
-    SITE="$site" node --input-type=module -e '
+    # The rules SiteHeader inserts are allowed by their hash: read from the page as it runs.
+    SITE="$site" POLICY="$(header content-security-policy <<<"$home")" node --input-type=module -e '
+        import { createHash } from "node:crypto";
         import { chromium } from "playwright";
         const browser = await chromium.launch();
         const violations = [];
@@ -204,11 +236,23 @@ if [[ $csp == true ]]; then
                 document.addEventListener("securitypolicyviolation", (e) => console.error(`Content Security Policy: ${e.violatedDirective} ${e.blockedURI}`));
             });
             await page.goto(process.env.SITE + path, { waitUntil: "networkidle" });
+            if (path === "/") {
+                // SiteHeader inserts the speculation rules once the app runs.
+                const rules = await page.waitForSelector(`script[type="speculationrules"]`, { state: "attached" })
+                    .then((script) => script.evaluate((element) => element.textContent))
+                    .catch(() => violations.push("/: no speculation rules inserted"));
+                if (typeof rules === "string") {
+                    const hash = `sha256-${createHash("sha256").update(rules).digest("base64")}`;
+                    if (!process.env.POLICY.includes(`'\''${hash}'\''`)) violations.push(`/: the speculation rules (${hash}) aren'\''t in the policy`);
+                }
+                // Let a violation the insertion caused reach the console before the page closes.
+                await page.evaluate(() => new Promise((resolve) => setTimeout(resolve)));
+            }
             await page.close();
         }
         await browser.close();
         if (violations.length) { console.error(violations.join("\n")); process.exit(1); }' || fail "the pages break the policy in Chromium"
-    echo "Both pages send the policy with their inline scripts' hashes; no violations in Chromium"
+    echo "Both pages send the policy with their inline scripts' and the speculation rules' hashes; / inserts its speculation rules; no violations in Chromium"
 else
     [[ -z $(header content-security-policy <<<"$home") ]] || fail "a Content-Security-Policy without the csp answer"
 fi
