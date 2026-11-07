@@ -85,7 +85,8 @@ csp:
   type: str
   help: >-
     A Content-Security-Policy header for the site, or empty for none. Write `script-src` without
-    the inline scripts' hashes: the build adds them (`scripts/prerender.mjs`).
+    the inline scripts' and the speculation rules' hashes: the build adds them
+    (`scripts/prerender.mjs`).
   default: ""
   validator: >-
     {% if csp and not (csp | regex_search('(^|;)\\s*script-src\\s')) %}
