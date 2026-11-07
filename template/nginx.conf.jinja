@@ -28,6 +28,8 @@ server {
 
     location / {
         add_header Cache-Control $cache_control;
+        # Chrome only uses a cross-origin (same-site) prerender of a page that opts in (`always`: the 404 too).
+        add_header Supports-Loading-Mode credentialed-prerender always;
 {%- if csp %}
         # In each location that sets headers: a location's own `add_header` replaces the outer ones.
         include /etc/nginx/csp.conf;
@@ -41,6 +43,7 @@ server {
     error_page 404 /404.html;
     location = /404.html {
         internal;
+        add_header Supports-Loading-Mode credentialed-prerender always;
 {%- if csp %}
         include /etc/nginx/csp.conf;
 {%- endif %}
