@@ -1,7 +1,9 @@
 import {
   SITE_TRANSITION_ATTRIBUTE,
   SITE_TRANSITION_COOKIE,
+  SITE_TRANSITION_STATES,
   SITE_TRANSITION_TO_ATTRIBUTE,
+  siteTransitionCookie,
 } from "@jakoblui-works/shared-ui";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -9,9 +11,8 @@ import indexHtml from "../index.html?raw";
 
 // The arrival side of shared-ui's site transitions: the inline script in index.html's <head> that
 // covers the page before its first paint when the visitor arrives from another site, and uncovers
-// it by itself if shared-ui's JavaScript never does. The names are shared-ui's; the cookie is the
-// one shared-ui's click handler writes: `<cookie>=<destination host>`, Domain the host's last two
-// labels (none for a single label or an IP), path=/, max-age=10, SameSite=Lax.
+// it by itself if shared-ui's JavaScript never does. The names, states and the cookie (as shared-ui's
+// click handler writes it) are shared-ui's.
 
 // vitest's jsdom environment, which the tests move between hosts and whose cookies they reset.
 declare const jsdom: {
@@ -51,15 +52,9 @@ const signal = () =>
     .find((cookie) => cookie.startsWith(`${SITE_TRANSITION_COOKIE}=`))
     ?.slice(SITE_TRANSITION_COOKIE.length + 1);
 
-/** What shared-ui's click handler on another site writes, for a page on `domain` (or host-only). */
-const writeSignal = (destination: string, domain: string | null) => {
-  document.cookie = [
-    `${SITE_TRANSITION_COOKIE}=${destination}`,
-    ...(domain ? [`Domain=${domain}`] : []),
-    "path=/",
-    "max-age=10",
-    "SameSite=Lax",
-  ].join("; ");
+/** The cookie shared-ui's click handler writes on this page, for a link to `destinationHref`. */
+const writeSignal = (destinationHref: string) => {
+  document.cookie = siteTransitionCookie(destinationHref, location.hostname);
 };
 
 /** Every value the mark takes from now on, including ones set and removed within a task. */
@@ -122,13 +117,16 @@ const activate = () => {
 
 // L1 / G2 (T3.2): the string contract between shared-ui and the head script.
 describe("index.html's site-transition head script", () => {
-  it("uses shared-ui's names for the mark, its destination and the cookie", () => {
+  it("uses shared-ui's names for the mark, its destination, the cookie and the covered state", () => {
     const script = headScripts().find((body) => mentions(SITE_TRANSITION_COOKIE).test(body)) ?? "";
     expect(script, `no inline head script uses the cookie "${SITE_TRANSITION_COOKIE}"`).toMatch(
       mentions(SITE_TRANSITION_COOKIE),
     );
     expect(script).toMatch(mentions(SITE_TRANSITION_ATTRIBUTE));
     expect(script).toMatch(mentions(SITE_TRANSITION_TO_ATTRIBUTE));
+    // The one state the script sets and clears; shared-ui's other states are only compared against
+    // (G3 sets them from SITE_TRANSITION_STATES).
+    expect(script).toMatch(mentions(SITE_TRANSITION_STATES.covered));
   });
 });
 
@@ -143,7 +141,7 @@ describe("the head script on a normal load", () => {
   });
 
   it("leaves a signal for another site alone and doesn't mark the page", () => {
-    writeSignal("ats.jakoblui.com", "jakoblui.com");
+    writeSignal("https://ats.jakoblui.com/");
     const marks = recordMarks();
     runHeadScripts();
     vi.advanceTimersByTime(NEVER_STUCK_MS);
@@ -154,28 +152,24 @@ describe("the head script on a normal load", () => {
   // Each kind of host takes the cookie's Domain differently; the script must delete the cookie
   // shared-ui wrote, which only a matching Domain does.
   it.each([
-    { from: "https://ats.jakoblui.com/", url: "https://cv.jakoblui.com/", domain: "jakoblui.com" },
-    { from: "https://cv.jakoblui.com/", url: "https://jakoblui.com/", domain: "jakoblui.com" },
-    {
-      from: "http://ats.jakoblui.localhost:5174/",
-      url: "http://cv.jakoblui.localhost:5173/",
-      domain: "jakoblui.localhost",
-    },
-    { from: "http://localhost:3001/", url: "http://localhost:3000/", domain: null },
-    { from: "http://127.0.0.1:8081/", url: "http://127.0.0.1:8080/", domain: null },
-  ])("covers an arrival at $url at once, takes the signal and uncovers by itself", ({ from, url, domain }) => {
+    { from: "https://ats.jakoblui.com/", url: "https://cv.jakoblui.com/" },
+    { from: "https://cv.jakoblui.com/", url: "https://jakoblui.com/" },
+    { from: "http://ats.jakoblui.localhost:5174/", url: "http://cv.jakoblui.localhost:5173/" },
+    { from: "http://localhost:3001/", url: "http://localhost:3000/" },
+    { from: "http://127.0.0.1:8081/", url: "http://127.0.0.1:8080/" },
+  ])("covers an arrival at $url at once, takes the signal and uncovers by itself", ({ from, url }) => {
     jsdom.reconfigure({ url: from });
-    writeSignal(new URL(url).host, domain);
+    writeSignal(url);
     jsdom.reconfigure({ url });
     expect(signal()).toBe(location.host);
 
     runHeadScripts();
-    expect(mark()).toBe("covered");
+    expect(mark()).toBe(SITE_TRANSITION_STATES.covered);
     expect(signal(), "the signal is still there after the head script ran").toBeUndefined();
 
     // Still covered at the first paint: the cover is drawn from the mark before any other script.
     vi.advanceTimersToNextFrame();
-    expect(mark()).toBe("covered");
+    expect(mark()).toBe(SITE_TRANSITION_STATES.covered);
 
     // Nothing else runs (shared-ui's JavaScript blocked or failing): the script uncovers by itself.
     vi.advanceTimersByTime(NEVER_STUCK_MS);
@@ -183,24 +177,24 @@ describe("the head script on a normal load", () => {
     expect(root().hasAttribute(SITE_TRANSITION_TO_ATTRIBUTE)).toBe(false);
   });
 
-  it("uncovers a page shared-ui is revealing", () => {
-    writeSignal(location.host, "jakoblui.com");
+  it("leaves a page alone that shared-ui is revealing", () => {
+    writeSignal(location.href);
     runHeadScripts();
-    // shared-ui's arrive() started sliding the cover off, but never finished.
-    root().setAttribute(SITE_TRANSITION_ATTRIBUTE, "revealing");
+    // shared-ui's arrive() is sliding the cover off; finishing it (or its own fallback) is shared-ui's.
+    root().setAttribute(SITE_TRANSITION_ATTRIBUTE, SITE_TRANSITION_STATES.revealing);
     vi.advanceTimersByTime(NEVER_STUCK_MS);
-    expect(mark()).toBeNull();
+    expect(mark()).toBe(SITE_TRANSITION_STATES.revealing);
   });
 
   it("leaves a page alone that the visitor is already leaving again", () => {
-    writeSignal(location.host, "jakoblui.com");
+    writeSignal(location.href);
     runHeadScripts();
-    expect(mark()).toBe("covered");
+    expect(mark()).toBe(SITE_TRANSITION_STATES.covered);
     // A click on another site's link within the second: shared-ui's leave() marks the page.
     root().setAttribute(SITE_TRANSITION_TO_ATTRIBUTE, "emerald");
-    root().setAttribute(SITE_TRANSITION_ATTRIBUTE, "leaving");
+    root().setAttribute(SITE_TRANSITION_ATTRIBUTE, SITE_TRANSITION_STATES.leaving);
     vi.advanceTimersByTime(NEVER_STUCK_MS);
-    expect(mark()).toBe("leaving");
+    expect(mark()).toBe(SITE_TRANSITION_STATES.leaving);
     expect(root().getAttribute(SITE_TRANSITION_TO_ATTRIBUTE)).toBe("emerald");
   });
 });
@@ -212,21 +206,21 @@ describe("the head script on a prerendered page", () => {
   ])(
     "covers it from the start and, with the signal ($written), keeps the cover until its own clear",
     ({ early }) => {
-      if (early) writeSignal(location.host, "jakoblui.com");
+      if (early) writeSignal(location.href);
       startPrerendering();
       runHeadScripts();
-      expect(mark()).toBe("covered");
+      expect(mark()).toBe(SITE_TRANSITION_STATES.covered);
 
       // A prerendered page can wait any time before it's shown; it stays covered meanwhile.
       vi.advanceTimersByTime(NEVER_STUCK_MS);
-      expect(mark()).toBe("covered");
+      expect(mark()).toBe(SITE_TRANSITION_STATES.covered);
 
-      if (!early) writeSignal(location.host, "jakoblui.com");
+      if (!early) writeSignal(location.href);
       activate();
-      expect(mark()).toBe("covered");
+      expect(mark()).toBe(SITE_TRANSITION_STATES.covered);
       expect(signal(), "the signal is still there after activation").toBeUndefined();
       vi.advanceTimersToNextFrame();
-      expect(mark()).toBe("covered");
+      expect(mark()).toBe(SITE_TRANSITION_STATES.covered);
 
       vi.advanceTimersByTime(NEVER_STUCK_MS);
       expect(mark()).toBeNull();
@@ -235,19 +229,19 @@ describe("the head script on a prerendered page", () => {
 
   it.each([
     { case: "no signal", destination: null },
-    { case: "a signal for another site", destination: "ats.jakoblui.com" },
+    { case: "a signal for another site", destination: "https://ats.jakoblui.com/" },
   ])("removes the mark at activation with $case", ({ destination }) => {
     startPrerendering();
     runHeadScripts();
-    expect(mark()).toBe("covered");
+    expect(mark()).toBe(SITE_TRANSITION_STATES.covered);
 
-    if (destination) writeSignal(destination, "jakoblui.com");
+    if (destination) writeSignal(destination);
     activate();
     expect(mark(), "the page is covered on its first frame after activation").toBeNull();
 
     const marks = recordMarks();
     vi.advanceTimersByTime(NEVER_STUCK_MS);
     expect(marks()).toEqual([]);
-    expect(signal()).toBe(destination ?? undefined);
+    expect(signal()).toBe(destination ? new URL(destination).host : undefined);
   });
 });

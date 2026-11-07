@@ -59,8 +59,8 @@
       // Runs before the first paint so a visit from another site's link starts under the cover,
       // which shared-ui then slides off; a cold load is never covered, and the cover clears by
       // itself after a second if shared-ui never does. The names are shared-ui's
-      // SITE_TRANSITION_ATTRIBUTE, SITE_TRANSITION_TO_ATTRIBUTE and SITE_TRANSITION_COOKIE; the
-      // cookie's Domain is its `cookieDomain`.
+      // SITE_TRANSITION_ATTRIBUTE, SITE_TRANSITION_TO_ATTRIBUTE, SITE_TRANSITION_COOKIE and
+      // SITE_TRANSITION_STATES; the cookie's Domain is its `cookieDomain`.
       (function () {
         var root = document.documentElement;
         var mark = "data-site-transition";
@@ -84,11 +84,11 @@
             "path=/; max-age=0; SameSite=Lax";
           return true;
         };
-        // Never while it reads `leaving`: a click on another site's link within the second.
+        // Only while it still reads `covered`: `revealing` is shared-ui's slide, which it finishes
+        // (or clears by its own fallback), and `leaving` is a click on another site's link.
         var armClear = function () {
           setTimeout(function () {
-            var state = root.getAttribute(mark);
-            if (state === "covered" || state === "revealing") clear();
+            if (root.getAttribute(mark) === "covered") clear();
           }, 1000);
         };
         if (document.prerendering === true) {

@@ -60,13 +60,17 @@ else
 fi
 cd "$project"
 if [[ -n $tarball ]]; then
-    step "Using the local shared-ui tarball $tarball"
+    # Named by its content: pnpm reuses its cached copy of a tarball with the same name and version,
+    # so a re-packed tarball would otherwise install as the old code.
+    hash=$(sha256sum "$tarball" | cut -c1-12)
+    tgz=shared-ui-$hash.tgz
+    step "Using the local shared-ui tarball $tarball (sha256 $hash, as $tgz)"
     # In the render only. Next to package.json, so the Dockerfile's first COPY can name it.
-    cp "$tarball" shared-ui.tgz
-    printf "overrides:\n  '@jakoblui-works/shared-ui': file:./shared-ui.tgz\n" >> pnpm-workspace.yaml
+    cp "$tarball" "$tgz"
+    printf "overrides:\n  '@jakoblui-works/shared-ui': file:./%s\n" "$tgz" >> pnpm-workspace.yaml
     for dockerfile in Dockerfile Dockerfile.storybook; do
-        sed -i 's|^COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./$|COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc shared-ui.tgz ./|' "$dockerfile"
-        grep -q '^COPY .* shared-ui.tgz ./$' "$dockerfile" || fail "couldn't add the tarball to $dockerfile's first COPY"
+        sed -i "s|^COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./\$|COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc $tgz ./|" "$dockerfile"
+        grep -q "^COPY .* $tgz ./\$" "$dockerfile" || fail "couldn't add the tarball to $dockerfile's first COPY"
     done
     # What copier's _tasks (copier.yml) would have run.
     pnpm install
