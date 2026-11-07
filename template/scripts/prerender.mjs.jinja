@@ -7,6 +7,9 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { readFile, rm, writeFile } from "node:fs/promises";
 {%- endif %}
 import path from "node:path";
+{%- if csp %}
+import { speculationRulesText } from "@jakoblui-works/shared-ui";
+{%- endif %}
 
 const root = path.join(import.meta.dirname, "..");
 const dist = path.join(root, "dist");
@@ -58,7 +61,10 @@ await rm(ssrDir, { recursive: true });
 
 // The Content-Security-Policy (the `csp` answer), with the hashes of every inline script in the
 // pages added to `script-src`: the theme script and the router's hydration scripts, whose contents
-// change between builds. nginx sends it (`nginx.conf`, the Dockerfile copies it there).
+// change between builds. Also the hash of the speculation rules shared-ui's `SiteHeader` inserts
+// from JavaScript: Chromium ignores `'inline-speculation-rules'` when `script-src` has hashes, and
+// the text comes from the installed shared-ui, so it matches what the header inserts. nginx sends
+// it (`nginx.conf`, the Dockerfile copies it there).
 const policy = {{ csp | tojson }};
 const inlineScripts = written.flatMap((page) =>
   [...page.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)]
@@ -66,7 +72,11 @@ const inlineScripts = written.flatMap((page) =>
     .map(([, , body]) => body),
 );
 const hashes = [
-  ...new Set(inlineScripts.map((body) => `'sha256-${createHash("sha256").update(body).digest("base64")}'`)),
+  ...new Set(
+    [...inlineScripts, speculationRulesText({{ subdomain | tojson }})].map(
+      (body) => `'sha256-${createHash("sha256").update(body).digest("base64")}'`,
+    ),
+  ),
 ];
 const withHashes = policy.replace(/(^|;)(\s*script-src)(?=\s)/, (_, start, directive) =>
   `${start}${directive} ${hashes.join(" ")}`,

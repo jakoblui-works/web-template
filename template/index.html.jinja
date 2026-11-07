@@ -55,6 +55,59 @@
       })();
     </script>
 {%- endif %}
+    <script>
+      // Runs before the first paint so a visit from another site's link starts under the cover,
+      // which shared-ui then slides off; a cold load is never covered, and the cover clears by
+      // itself after a second if shared-ui never does. The names are shared-ui's
+      // SITE_TRANSITION_ATTRIBUTE, SITE_TRANSITION_TO_ATTRIBUTE, SITE_TRANSITION_COOKIE and
+      // SITE_TRANSITION_STATES; the cookie's Domain is its `cookieDomain`.
+      (function () {
+        var root = document.documentElement;
+        var mark = "data-site-transition";
+        var clear = function () {
+          root.removeAttribute(mark);
+          root.removeAttribute("data-site-transition-to");
+        };
+        // The signal: this host's arrival cookie, deleted once read. False for none or another host's.
+        var takeSignal = function () {
+          var cookies = document.cookie.split("; ");
+          var found = false;
+          for (var i = 0; i < cookies.length; i++)
+            if (cookies[i] === "site-transition=" + location.host) found = true;
+          if (!found) return false;
+          var host = location.hostname;
+          var labels = host.split(".");
+          var single = host.indexOf(":") >= 0 || /^\d+(\.\d+){3}$/.test(host) || labels.length < 2;
+          document.cookie =
+            "site-transition=; " +
+            (single ? "" : "Domain=" + labels.slice(-2).join(".") + "; ") +
+            "path=/; max-age=0; SameSite=Lax";
+          return true;
+        };
+        // Only while it still reads `covered`: `revealing` is shared-ui's slide, which it finishes
+        // (or clears by its own fallback), and `leaving` is a click on another site's link.
+        var armClear = function () {
+          setTimeout(function () {
+            if (root.getAttribute(mark) === "covered") clear();
+          }, 1000);
+        };
+        if (document.prerendering === true) {
+          root.setAttribute(mark, "covered");
+          // Registered before shared-ui's, so the mark is gone at activation when there's no signal.
+          document.addEventListener(
+            "prerenderingchange",
+            function () {
+              if (takeSignal()) armClear();
+              else clear();
+            },
+            { once: true }
+          );
+        } else if (takeSignal()) {
+          root.setAttribute(mark, "covered");
+          armClear();
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>

@@ -34,6 +34,7 @@ React 19, Vite, TanStack Router (file routes in `src/routes`; `routeTree.gen.ts`
 ## Prerendering and 404s
 `pnpm build` renders `/` and the not-found page in Node and writes them into `dist/index.html` and `dist/404.html`, so crawlers get the text without running JavaScript. The browser hydrates a page on a URL that renders the same as the one it was rendered for, and replaces it anywhere else (`main.tsx`). nginx serves only real files and answers anything else with `404.html` and a 404 status.
 - **Rendering must work in Node, and match the browser's first render.** Don't read `window` or `document` while rendering (effects are fine). A render error fails the build on purpose.
+- **The site-transition head script** in `index.html` covers an arrival from another site's link before the first paint (from shared-ui's cookie signal) and uncovers by itself after about a second. Its names come from shared-ui, and `src/site-transition-head-script.test.ts` checks them. nginx sends `Supports-Loading-Mode` so other sites can prerender the pages.
 - **Heads are static,** in `index.html`, because previews and crawlers don't run JavaScript. `404.html`'s head is rewritten in `scripts/prerender.mjs`.
 
 ## Gotchas
