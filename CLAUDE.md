@@ -8,7 +8,7 @@ uv tool install copier
 scripts/test-template.sh false false   # theme_toggle use_api [csp]: render and check it (CI runs the combinations)
 SHARED_UI_TARBALL=/abs/path/shared-ui.tgz NODE_AUTH_TOKEN=placeholder scripts/test-template.sh false false   # with an unpublished shared-ui
 ```
-`scripts/test-template.sh` needs `NODE_AUTH_TOKEN` (a token with `read:packages`; locally `NODE_AUTH_TOKEN=$(gh auth token)`), Docker and network access. `SHARED_UI_TARBALL` must be an absolute path to a `.tgz`. Its checks (T1–T8) are described where they run; G1–G3 are tests rendered into every app (`template/src/*.test.ts*`).
+`scripts/test-template.sh` needs `NODE_AUTH_TOKEN` (a token with `read:packages`; locally `NODE_AUTH_TOKEN=$(gh auth token)`), Docker and network access. `SHARED_UI_TARBALL` must be an absolute path to a `.tgz`. The tests rendered into every site are in `template/src/*.test.ts*`.
 
 ## Layout
 - `template/`: what a new site gets. `copier.yml`: the questions, `_skip_if_exists` and `_tasks`.

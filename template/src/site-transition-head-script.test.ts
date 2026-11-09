@@ -13,8 +13,6 @@ import indexHtml from "../index.html?raw";
 // covers the page before its first paint when the visitor arrives from another site, and uncovers
 // it by itself if shared-ui's JavaScript never does. The names, states and the cookie (as shared-ui's
 // click handler writes it) are shared-ui's.
-// G2 checks the script uses shared-ui's names; G3 runs it in jsdom with fake timers, on a normal load
-// and on a prerendered page.
 
 // vitest's jsdom environment, which the tests move between hosts and whose cookies they reset.
 declare const jsdom: {
@@ -22,7 +20,7 @@ declare const jsdom: {
   cookieJar: { removeAllCookiesSync(): void };
 };
 
-// C3: the script uncovers the page by itself after about 1 s. The bound is that plus slack; the
+// The script uncovers the page by itself after about 1 s. The bound is that plus slack; the
 // exact delay stays the script's to choose.
 const NEVER_STUCK_MS = 2_000;
 
@@ -117,7 +115,7 @@ const activate = () => {
   document.dispatchEvent(new Event("prerenderingchange"));
 };
 
-// L1 / G2 (T3.2): the string contract between shared-ui and the head script.
+// The string contract between shared-ui and the head script.
 describe("index.html's site-transition head script", () => {
   it("uses shared-ui's names for the mark, its destination, the cookie and the covered state", () => {
     const script = headScripts().find((body) => mentions(SITE_TRANSITION_COOKIE).test(body)) ?? "";
@@ -127,12 +125,12 @@ describe("index.html's site-transition head script", () => {
     expect(script).toMatch(mentions(SITE_TRANSITION_ATTRIBUTE));
     expect(script).toMatch(mentions(SITE_TRANSITION_TO_ATTRIBUTE));
     // The one state the script sets and clears; shared-ui's other states are only compared against
-    // (G3 sets them from SITE_TRANSITION_STATES).
+    // (the tests below set them from SITE_TRANSITION_STATES).
     expect(script).toMatch(mentions(SITE_TRANSITION_STATES.covered));
   });
 });
 
-// L2 (C3, T3.2) / G3: a cold load is never covered; an arrival is covered at once and never stays so.
+// A cold load is never covered; an arrival is covered at once and never stays so.
 describe("the head script on a normal load", () => {
   it("never marks a page loaded without the signal", () => {
     const marks = recordMarks();
@@ -201,7 +199,7 @@ describe("the head script on a normal load", () => {
   });
 });
 
-// G3: a prerendered page is covered from the start, keeps the cover through activation with the
+// A prerendered page is covered from the start, keeps the cover through activation with the
 // signal and loses it at activation without.
 describe("the head script on a prerendered page", () => {
   it.each([

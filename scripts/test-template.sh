@@ -39,7 +39,7 @@ step() { printf '\n==> %s\n' "$*"; }
 fail() { printf 'FAILED: %s\n' "$*" >&2; exit 1; }
 
 # `cv` is in shared-ui's sites.ts, which AppHeader's `current` is typed by.
-# Part of T2: a plain file next to its .jinja twin renders to the same path, and Copier silently
+# A plain file next to its .jinja twin renders to the same path, and Copier silently
 # keeps one of them.
 step "No file in the template both plain and as .jinja"
 twins=$(cd "$repo/template" && find . -name '*.jinja' | while read -r j; do if [[ -e ${j%.jinja} ]]; then echo "${j%.jinja}"; fi; done)
@@ -80,8 +80,8 @@ if [[ -n $tarball ]]; then
     pnpm ls @jakoblui-works/shared-ui
 fi
 
-# T2: nothing in the render (file names or contents) is left unrendered Jinja, outside GitHub
-# expressions. node_modules and the lockfile come from the install task, not the template.
+# File names and contents; GitHub expressions are allowed. node_modules and the lockfile come from the
+# install task, not the template.
 step "No unrendered Jinja"
 jinja='\{\{|\{%|\{#'
 bad_names=$(find . -path ./node_modules -prune -o -path ./.git -prune -o -print | grep -E "$jinja" || true)
@@ -94,14 +94,13 @@ if [[ -n $bad_names || -n $bad_lines ]]; then
     exit 1
 fi
 
-# T1: every answer combination (CI runs them) installs, lints, builds and tests.
 step "pnpm install --frozen-lockfile"
 pnpm install --frozen-lockfile
 step "lint"
 pnpm run lint
 step "build (with prerender and tsc)"
 pnpm run build
-# T8: the build renders the bitmap icons from icon.svg (nothing else would notice them missing).
+# Nothing else would notice the icons missing.
 step "The build renders favicon.ico (16/32/48) and apple-touch-icon.png (180) from icon.svg"
 node --input-type=module <<'EOF' || fail "the icons in dist aren't right"
     import { readFileSync } from "node:fs";
@@ -132,7 +131,6 @@ pnpm run test
 step "build-storybook"
 pnpm run build-storybook
 
-# T6: the inline script in index.html and ThemeToggle read and write the same key.
 if [[ $theme_toggle == true ]]; then
     step "index.html's theme script reads shared-ui's THEME_STORAGE_KEY"
     key=$(node --input-type=module -e 'import { THEME_STORAGE_KEY } from "@jakoblui-works/shared-ui"; process.stdout.write(THEME_STORAGE_KEY)' 2>/dev/null) \
@@ -147,7 +145,6 @@ step "Docker images"
 docker build -q --secret id=npm_token,env=NODE_AUTH_TOKEN -t "$site_image" . >/dev/null
 docker build -q -f Dockerfile.storybook --secret id=npm_token,env=NODE_AUTH_TOKEN -t "$storybook_image" . >/dev/null
 
-# T5: the package token is in neither image.
 step "No token in either image"
 for image in "$site_image" "$storybook_image"; do
     # Counted rather than `grep -q`, which stops reading early: under pipefail, the writer's SIGPIPE
@@ -179,9 +176,6 @@ serve() {
 }
 header() { grep -i "^$1:" | head -1 | cut -d: -f2- | tr -d '\r' | sed 's/^ *//'; }
 
-# T3: the site image as nginx serves it. / is the prerendered page with no-cache; /assets/ is immutable
-# and gzipped; .wasm is gzipped application/wasm and .mjs is JavaScript; an unknown path is a 404 with
-# 404.html; / and the 404 page opt in to credentialed prerendering.
 step "The site image serves the app"
 site=$(serve "$site_container" "$site_image")
 home=$(curl -s -D - -o "$tmp/home.html" "$site/")
@@ -211,9 +205,6 @@ mjs_headers=$(curl -s -D - -o /dev/null "$site/assets/t3.mjs")
 [[ $(header content-type <<<"$mjs_headers") == application/javascript ]] || fail ".mjs isn't served as JavaScript"
 echo "200 and no-cache for /, immutable and gzip for $asset, .wasm gzipped, .mjs as JavaScript, 404 with 404.html for an unknown path, both pages opt in to credentialed prerendering"
 
-# T7: with csp, / and the 404 page send the answer's policy with only hashes added to script-src (their
-# inline scripts' and shared-ui's speculation rules'), and both load in Chromium without a violation, /
-# with the speculation rules inserted and their hash in the policy. Without csp, no CSP header.
 if [[ $csp == true ]]; then
     step "The CSP header allows the pages' inline scripts and speculation rules by hash, and the pages run without a violation"
     for page in home missing; do
@@ -268,7 +259,6 @@ else
     [[ -z $(header content-security-policy <<<"$home") ]] || fail "a Content-Security-Policy without the csp answer"
 fi
 
-# T4: the Storybook image serves index.json with the CORS headers storybook-host's composition needs.
 step "The Storybook image serves index.json for composition"
 storybook=$(serve "$storybook_container" "$storybook_image")
 origin=https://storybook.jakoblui.com
