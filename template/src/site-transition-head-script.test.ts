@@ -20,7 +20,7 @@ declare const jsdom: {
   cookieJar: { removeAllCookiesSync(): void };
 };
 
-// C3: the script uncovers the page by itself after about 1 s. The bound is that plus slack; the
+// The script uncovers the page by itself after about 1 s. The bound is that plus slack; the
 // exact delay stays the script's to choose.
 const NEVER_STUCK_MS = 2_000;
 
@@ -115,7 +115,7 @@ const activate = () => {
   document.dispatchEvent(new Event("prerenderingchange"));
 };
 
-// L1 / G2 (T3.2): the string contract between shared-ui and the head script.
+// The string contract between shared-ui and the head script.
 describe("index.html's site-transition head script", () => {
   it("uses shared-ui's names for the mark, its destination, the cookie and the covered state", () => {
     const script = headScripts().find((body) => mentions(SITE_TRANSITION_COOKIE).test(body)) ?? "";
@@ -125,12 +125,12 @@ describe("index.html's site-transition head script", () => {
     expect(script).toMatch(mentions(SITE_TRANSITION_ATTRIBUTE));
     expect(script).toMatch(mentions(SITE_TRANSITION_TO_ATTRIBUTE));
     // The one state the script sets and clears; shared-ui's other states are only compared against
-    // (G3 sets them from SITE_TRANSITION_STATES).
+    // (the tests below set them from SITE_TRANSITION_STATES).
     expect(script).toMatch(mentions(SITE_TRANSITION_STATES.covered));
   });
 });
 
-// L2 (C3, T3.2): a cold load is never covered; an arrival is covered at once and never stays so.
+// A cold load is never covered; an arrival is covered at once and never stays so.
 describe("the head script on a normal load", () => {
   it("never marks a page loaded without the signal", () => {
     const marks = recordMarks();
@@ -199,6 +199,8 @@ describe("the head script on a normal load", () => {
   });
 });
 
+// A prerendered page is covered from the start, keeps the cover through activation with the
+// signal and loses it at activation without.
 describe("the head script on a prerendered page", () => {
   it.each([
     { written: "before the prerender", early: true },
