@@ -4,8 +4,9 @@
 # With SHARED_UI_TARBALL=<absolute path to a .tgz>, shared-ui comes from that tarball instead of GitHub
 # Packages (for a version not published yet); NODE_AUTH_TOKEN can then be a placeholder.
 # Usage: scripts/test-template.sh <theme_toggle: true|false> <use_api: true|false> [csp: true|false]
-# Needs NODE_AUTH_TOKEN: a GitHub token with read:packages, for @jakoblui-works/shared-ui (the Docker
-# builds take it as a secret; installs read it through the user-level npmrc, see the README).
+# Needs Docker, network access (installs, image pulls, the api renders' prod OpenAPI spec) and
+# NODE_AUTH_TOKEN: a GitHub token with read:packages, for @jakoblui-works/shared-ui (the Docker builds
+# take it as a secret; installs read it through the user-level npmrc, see the README).
 set -euo pipefail
 
 if [[ $# -lt 2 || $# -gt 3 || ! $1 =~ ^(true|false)$ || ! $2 =~ ^(true|false)$ || ! ${3:-false} =~ ^(true|false)$ ]]; then
@@ -72,13 +73,15 @@ if [[ -n $tarball ]]; then
         sed -i "s|^COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./\$|COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc $tgz ./|" "$dockerfile"
         grep -q "^COPY .* $tgz ./\$" "$dockerfile" || fail "couldn't add the tarball to $dockerfile's first COPY"
     done
-    # What copier's _tasks (copier.yml) would have run.
+    # What copier's _tasks (copier.yml) would have run; keep the two the same.
     pnpm install
     [[ $use_api == true ]] && pnpm generate:api
+    # The shared-ui version that installed, for the log.
     pnpm ls @jakoblui-works/shared-ui
 fi
 
-# T2. node_modules and the lockfile come from the install task, not the template.
+# T2: nothing in the render (file names or contents) is left unrendered Jinja, outside GitHub
+# expressions. node_modules and the lockfile come from the install task, not the template.
 step "No unrendered Jinja"
 jinja='\{\{|\{%|\{#'
 bad_names=$(find . -path ./node_modules -prune -o -path ./.git -prune -o -print | grep -E "$jinja" || true)
@@ -91,7 +94,7 @@ if [[ -n $bad_names || -n $bad_lines ]]; then
     exit 1
 fi
 
-# T1
+# T1: every answer combination (CI runs them) installs, lints, builds and tests.
 step "pnpm install --frozen-lockfile"
 pnpm install --frozen-lockfile
 step "lint"
@@ -144,7 +147,7 @@ step "Docker images"
 docker build -q --secret id=npm_token,env=NODE_AUTH_TOKEN -t "$site_image" . >/dev/null
 docker build -q -f Dockerfile.storybook --secret id=npm_token,env=NODE_AUTH_TOKEN -t "$storybook_image" . >/dev/null
 
-# T5
+# T5: the package token is in neither image.
 step "No token in either image"
 for image in "$site_image" "$storybook_image"; do
     # Counted rather than `grep -q`, which stops reading early: under pipefail, the writer's SIGPIPE
@@ -176,7 +179,9 @@ serve() {
 }
 header() { grep -i "^$1:" | head -1 | cut -d: -f2- | tr -d '\r' | sed 's/^ *//'; }
 
-# T3
+# T3: the site image as nginx serves it. / is the prerendered page with no-cache; /assets/ is immutable
+# and gzipped; .wasm is gzipped application/wasm and .mjs is JavaScript; an unknown path is a 404 with
+# 404.html; / and the 404 page opt in to credentialed prerendering.
 step "The site image serves the app"
 site=$(serve "$site_container" "$site_image")
 home=$(curl -s -D - -o "$tmp/home.html" "$site/")
@@ -206,7 +211,9 @@ mjs_headers=$(curl -s -D - -o /dev/null "$site/assets/t3.mjs")
 [[ $(header content-type <<<"$mjs_headers") == application/javascript ]] || fail ".mjs isn't served as JavaScript"
 echo "200 and no-cache for /, immutable and gzip for $asset, .wasm gzipped, .mjs as JavaScript, 404 with 404.html for an unknown path, both pages opt in to credentialed prerendering"
 
-# T7
+# T7: with csp, / and the 404 page send the answer's policy with only hashes added to script-src (their
+# inline scripts' and shared-ui's speculation rules'), and both load in Chromium without a violation, /
+# with the speculation rules inserted and their hash in the policy. Without csp, no CSP header.
 if [[ $csp == true ]]; then
     step "The CSP header allows the pages' inline scripts and speculation rules by hash, and the pages run without a violation"
     for page in home missing; do
@@ -261,7 +268,7 @@ else
     [[ -z $(header content-security-policy <<<"$home") ]] || fail "a Content-Security-Policy without the csp answer"
 fi
 
-# T4
+# T4: the Storybook image serves index.json with the CORS headers storybook-host's composition needs.
 step "The Storybook image serves index.json for composition"
 storybook=$(serve "$storybook_container" "$storybook_image")
 origin=https://storybook.jakoblui.com

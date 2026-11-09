@@ -13,6 +13,8 @@ import indexHtml from "../index.html?raw";
 // covers the page before its first paint when the visitor arrives from another site, and uncovers
 // it by itself if shared-ui's JavaScript never does. The names, states and the cookie (as shared-ui's
 // click handler writes it) are shared-ui's.
+// G2 checks the script uses shared-ui's names; G3 runs it in jsdom with fake timers, on a normal load
+// and on a prerendered page.
 
 // vitest's jsdom environment, which the tests move between hosts and whose cookies they reset.
 declare const jsdom: {
@@ -130,7 +132,7 @@ describe("index.html's site-transition head script", () => {
   });
 });
 
-// L2 (C3, T3.2): a cold load is never covered; an arrival is covered at once and never stays so.
+// L2 (C3, T3.2) / G3: a cold load is never covered; an arrival is covered at once and never stays so.
 describe("the head script on a normal load", () => {
   it("never marks a page loaded without the signal", () => {
     const marks = recordMarks();
@@ -199,6 +201,8 @@ describe("the head script on a normal load", () => {
   });
 });
 
+// G3: a prerendered page is covered from the start, keeps the cover through activation with the
+// signal and loses it at activation without.
 describe("the head script on a prerendered page", () => {
   it.each([
     { written: "before the prerender", early: true },
